@@ -1,5 +1,7 @@
 const RecipeApp = (function () {
 
+  // ---------------- Recipe Data ----------------
+
   const recipes = [
     {
       id: 1,
@@ -14,10 +16,10 @@ const RecipeApp = (function () {
           substeps: [
             "Add pasta to boiling water",
             "Cook for 10 minutes",
-            "Drain the water"
+            "Drain water"
           ]
         },
-        "Add sauce and mix well"
+        "Add sauce and mix"
       ]
     },
     {
@@ -27,7 +29,7 @@ const RecipeApp = (function () {
       rating: 5,
       ingredients: ["Rice", "Vegetables", "Soy Sauce", "Oil"],
       steps: [
-        "Heat oil in pan",
+        "Heat oil",
         {
           text: "Prepare vegetables",
           substeps: [
@@ -35,41 +37,82 @@ const RecipeApp = (function () {
             "Saute for 5 minutes"
           ]
         },
-        "Add rice and soy sauce",
-        "Cook for 3 minutes"
+        "Add rice and soy sauce"
       ]
     }
   ];
 
-  const container = document.getElementById("recipe-container");
+  // ---------------- State ----------------
 
-  // Render Recipes
-  function renderRecipes(recipeList) {
+  let searchText = "";
+  let showFavoritesOnly = false;
+  let favorites = JSON.parse(localStorage.getItem("favorites")) || [];
+
+  // ---------------- DOM Elements ----------------
+
+  const container = document.getElementById("recipe-container");
+  const searchInput = document.getElementById("search-input");
+  const favoritesCheckbox = document.getElementById("favorites-only");
+  const counter = document.getElementById("recipe-counter");
+
+  // ---------------- Render Recipes ----------------
+
+  function renderRecipes() {
+
+    const filtered = recipes.filter(recipe => {
+
+      const matchesSearch =
+        recipe.title.toLowerCase().includes(searchText) ||
+        recipe.ingredients.some(ing =>
+          ing.toLowerCase().includes(searchText)
+        );
+
+      const matchesFavorites =
+        !showFavoritesOnly || favorites.includes(recipe.id);
+
+      return matchesSearch && matchesFavorites;
+    });
+
     container.innerHTML = "";
 
-    recipeList.forEach(recipe => {
+    filtered.forEach(recipe => {
+
+      const isFavorite = favorites.includes(recipe.id);
+
       const card = document.createElement("div");
       card.classList.add("recipe-card");
 
       card.innerHTML = `
         <h3>${recipe.title}</h3>
+
+        <button class="favorite-btn ${isFavorite ? "favorite" : ""}" 
+                data-id="${recipe.id}">
+          ♥
+        </button>
+
         <p>Category: ${recipe.category}</p>
         <p>Rating: ${recipe.rating}</p>
+
         <button class="toggle-steps" data-id="${recipe.id}">
           Show Steps
         </button>
+
         <button class="toggle-ingredients" data-id="${recipe.id}">
           Show Ingredients
         </button>
+
         <div class="steps hidden" id="steps-${recipe.id}"></div>
         <div class="ingredients hidden" id="ingredients-${recipe.id}"></div>
       `;
 
       container.appendChild(card);
     });
+
+    updateCounter(filtered.length);
   }
 
-  // 🔁 Recursive Function for Steps
+  // ---------------- Recursive Steps ----------------
+
   function renderSteps(stepsArray) {
     const ul = document.createElement("ul");
 
@@ -80,9 +123,8 @@ const RecipeApp = (function () {
         li.textContent = step;
       } else {
         li.textContent = step.text;
-
         if (step.substeps) {
-          li.appendChild(renderSteps(step.substeps)); // recursion
+          li.appendChild(renderSteps(step.substeps));
         }
       }
 
@@ -92,7 +134,6 @@ const RecipeApp = (function () {
     return ul;
   }
 
-  // Render Ingredients
   function renderIngredients(ingredientsArray) {
     const ul = document.createElement("ul");
 
@@ -105,12 +146,48 @@ const RecipeApp = (function () {
     return ul;
   }
 
-  // Event Delegation
-  function handleClick(event) {
-    const id = event.target.dataset.id;
+  // ---------------- Counter ----------------
 
+  function updateCounter(count) {
+    counter.textContent =
+      `Showing ${count} of ${recipes.length} recipes`;
+  }
+
+  // ---------------- Debounce ----------------
+
+  function debounce(callback, delay) {
+    let timeout;
+    return function (...args) {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        callback.apply(this, args);
+      }, delay);
+    };
+  }
+
+  // ---------------- Event Handling ----------------
+
+  function handleClick(event) {
+
+    const id = parseInt(event.target.dataset.id);
+
+    // Favorite toggle
+    if (event.target.classList.contains("favorite-btn")) {
+
+      if (favorites.includes(id)) {
+        favorites = favorites.filter(favId => favId !== id);
+      } else {
+        favorites.push(id);
+      }
+
+      localStorage.setItem("favorites", JSON.stringify(favorites));
+      renderRecipes();
+    }
+
+    // Toggle Steps
     if (event.target.classList.contains("toggle-steps")) {
-      const recipe = recipes.find(r => r.id == id);
+
+      const recipe = recipes.find(r => r.id === id);
       const stepsDiv = document.getElementById(`steps-${id}`);
 
       if (stepsDiv.classList.contains("hidden")) {
@@ -124,8 +201,10 @@ const RecipeApp = (function () {
       }
     }
 
+    // Toggle Ingredients
     if (event.target.classList.contains("toggle-ingredients")) {
-      const recipe = recipes.find(r => r.id == id);
+
+      const recipe = recipes.find(r => r.id === id);
       const ingDiv = document.getElementById(`ingredients-${id}`);
 
       if (ingDiv.classList.contains("hidden")) {
@@ -140,9 +219,26 @@ const RecipeApp = (function () {
     }
   }
 
+  // ---------------- Init ----------------
+
   function init() {
-    renderRecipes(recipes);
+
+    renderRecipes();
+
     container.addEventListener("click", handleClick);
+
+    searchInput.addEventListener(
+      "input",
+      debounce((event) => {
+        searchText = event.target.value.toLowerCase();
+        renderRecipes();
+      }, 300)
+    );
+
+    favoritesCheckbox.addEventListener("change", (event) => {
+      showFavoritesOnly = event.target.checked;
+      renderRecipes();
+    });
   }
 
   return {
@@ -152,3 +248,4 @@ const RecipeApp = (function () {
 })();
 
 document.addEventListener("DOMContentLoaded", RecipeApp.init);
+
